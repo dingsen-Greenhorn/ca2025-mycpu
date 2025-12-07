@@ -42,6 +42,7 @@ class InstructionDecode extends Module {
     val regs_reg2_read_address = Output(UInt(Parameters.PhysicalRegisterAddrWidth))
     val ex_immediate           = Output(UInt(Parameters.DataBits.W))
     val ex_aluop1_source       = Output(UInt(1.W))
+    val ex_aluop2_source       = Output(UInt(1.W))
     val memory_read_enable     = Output(Bool())
     val memory_write_enable    = Output(Bool())
     val wb_reg_write_source    = Output(UInt(2.W))
@@ -49,21 +50,18 @@ class InstructionDecode extends Module {
     val reg_write_address      = Output(UInt(Parameters.PhysicalRegisterAddrWidth))
   })
 
-  // Instruction Fields
   val instruction = io.instruction
   val opcode      = instruction(6, 0)
   val rs1         = instruction(19, 15)
   val rs2         = instruction(24, 20)
   val rd          = instruction(11, 7)
 
-  // Instruction Type Decoding
+  // Decode instruction types
   val isLoad  = opcode === InstructionTypes.Load  // LW
   val isStore = opcode === InstructionTypes.Store // SW
   val isOpImm = opcode === InstructionTypes.OpImm // ADDI
   val isAuipc = opcode === InstructionTypes.Auipc // AUIPC
   val isJalr  = opcode === InstructionTypes.Jalr  // JALR
-
-  // Control Signal Generation
 
   // Register usage
   val usesRs1  = isLoad || isStore || isOpImm || isJalr
@@ -81,15 +79,13 @@ class InstructionDecode extends Module {
   // ALU operand 1 source (PC for AUIPC, register otherwise)
   val aluOp1Sel = Mux(isAuipc, ALUOp1Source.InstructionAddress, ALUOp1Source.Register)
 
-  // ALU operand 2 source (all supported instructions use an immediate)
-  val aluOp2Sel = ALUOp2Source.Immediate
+  // ALU operand 2 source (immediate for most instructions)
+  val needsImmediate = isLoad || isStore || isOpImm || isAuipc || isJalr
+  val aluOp2Sel      = Mux(needsImmediate, ALUOp2Source.;, ALUOp2Source.Register)
 
-  // Immediate Extraction
-  // I-type for Load, OpImm, Jalr
+  // Immediate extraction (I-type for most, S-type for store, U-type for AUIPC)
   val immI = Cat(Fill(Parameters.DataBits - 12, instruction(31)), instruction(31, 20))
-  // S-type for Store
   val immS = Cat(Fill(Parameters.DataBits - 12, instruction(31)), instruction(31, 25), instruction(11, 7))
-  // U-type for AUIPC
   val immU = Cat(instruction(31, 12), 0.U(12.W))
 
   val immediate = MuxLookup(opcode, immI)(
@@ -99,11 +95,11 @@ class InstructionDecode extends Module {
     )
   )
 
-  // Output Assignments
   io.regs_reg1_read_address := Mux(usesRs1, rs1, 0.U)
   io.regs_reg2_read_address := Mux(usesRs2, rs2, 0.U)
   io.ex_immediate           := immediate
   io.ex_aluop1_source       := aluOp1Sel
+  io.ex_aluop2_source       := aluOp2Sel
   io.memory_read_enable     := isLoad
   io.memory_write_enable    := isStore
   io.wb_reg_write_source    := wbSource

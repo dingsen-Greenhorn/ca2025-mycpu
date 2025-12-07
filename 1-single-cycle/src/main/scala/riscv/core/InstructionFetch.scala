@@ -38,6 +38,9 @@ class InstructionFetch extends Module {
   // Program counter register (PC)
   val pc = RegInit(ProgramCounter.EntryAddress)
 
+  
+ 
+
   // ============================================================
   // [CA25: Exercise 9] PC Update Logic - Sequential vs Control Flow
   // ============================================================
@@ -67,7 +70,7 @@ class InstructionFetch extends Module {
     // - Check jump flag condition
     // - True case: Use jump target address
     // - False case: Sequential execution
-    pc := ?
+    pc := Mux(io.jump_flag_id, io.jump_address_id, pc + 4.U)
 
   }.otherwise {
     // When instruction is invalid, hold PC and insert NOP (ADDI x0, x0, 0)
